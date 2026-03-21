@@ -112,6 +112,27 @@ class TestRoomListView:
         assert "NAC" in content
         assert "Shepard Hall" in content
 
+    def test_room_capacity(self):
+       nac = Building.objects.create(name="NAC")
+       Room.objects.create(building=nac, number="1/202", capacity=30)
+       Room.objects.create(building=nac, number="1/303", capacity=60)
+       client = Client()
+       response = client.get("/?min_capacity=40")
+       content = response.content.decode()
+       assert "1/303" in content
+       assert "1/202" not in content
+  
+    def test_room_capacity_invalid_input(self):
+       nac = Building.objects.create(name="NAC")
+       Room.objects.create(building=nac, number="1/202", capacity=30)
+       Room.objects.create(building=nac, number="1/303", capacity=60)
+       client = Client()
+       response = client.get("/?min_capacity=abcd")
+       content = response.content.decode()
+       assert response.status_code == 200
+       assert "1/303" in content
+       assert "1/202" in content
+
 
 # =====================================================
 # SANITY TEST
