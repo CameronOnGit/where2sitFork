@@ -118,26 +118,45 @@ class TestRoomListView:
         assert "NAC" in content
         assert "Shepard Hall" in content
 
-    def test_room_capacity(self):
-       nac = Building.objects.create(name="NAC")
-       Room.objects.create(building=nac, number="1/202", capacity=30)
-       Room.objects.create(building=nac, number="1/303", capacity=60)
-       client = Client()
-       response = client.get("/?min_capacity=40")
-       content = response.content.decode()
-       assert "1/303" in content
-       assert "1/202" not in content
-  
-    def test_room_capacity_invalid_input(self):
-       nac = Building.objects.create(name="NAC")
-       Room.objects.create(building=nac, number="1/202", capacity=30)
-       Room.objects.create(building=nac, number="1/303", capacity=60)
-       client = Client()
-       response = client.get("/?min_capacity=abcd")
-       content = response.content.decode()
-       assert response.status_code == 200
-       assert "1/303" in content
-       assert "1/202" in content
+    def test_room_list_filter_by_building(self):
+        """Only rooms in Shepard Hall should appear"""
+        nac = Building.objects.create(name="NAC")
+        shepard = Building.objects.create(name="Shepard Hall")
+        marshak = Building.objects.create(name="Marshak")
+        Room.objects.create(building=nac, number="1/202", capacity=30)
+        Room.objects.create(building=nac, number="7/313A", capacity=30)
+        Room.objects.create(building=nac, number="6/112", capacity=30)
+        Room.objects.create(building=shepard, number="101", capacity=60)
+        Room.objects.create(building=shepard, number="204", capacity=30)
+        Room.objects.create(building=marshak, number="1307", capacity=30)
+        Room.objects.create(building=marshak, number="MR2", capacity=200)
+        client = Client()
+        response = client.get("/?building=Shepard Hall")
+        content = response.content.decode()
+        assert "NAC" not in content
+        assert "Shepard Hall" in content
+        assert "Marshak" not in content
+
+    def test_room_list_filter_by_building_invalid_input(self):
+        """Filter by a wrong building name, the response returns no rooms"""
+        nac = Building.objects.create(name="NAC")
+        shepard = Building.objects.create(name="Shepard Hall")
+        marshak = Building.objects.create(name="Marshak")
+        Room.objects.create(building=nac, number="1/202", capacity=30)
+        Room.objects.create(building=nac, number="7/313A", capacity=30)
+        Room.objects.create(building=nac, number="6/112", capacity=30)
+        Room.objects.create(building=shepard, number="101", capacity=60)
+        Room.objects.create(building=shepard, number="204", capacity=30)
+        Room.objects.create(building=marshak, number="1307", capacity=30)
+        Room.objects.create(building=marshak, number="MR2", capacity=200)
+        client = Client()
+        response = client.get("/?building=Marsha")  # intentional typo
+        content = response.content.decode()
+        assert response.status_code == 200
+        assert "NAC" not in content
+        assert "Shepard Hall" not in content
+        assert "Marshak" not in content
+
 
 
 # =====================================================
