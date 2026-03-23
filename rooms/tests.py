@@ -158,6 +158,53 @@ class TestRoomListView:
         assert "Marshak" not in content
 
 
+@pytest.mark.django_db
+class TestRoomIntegration:
+    def test_room_integration_success(self):
+        """Only rooms in Shepard Hall with capacity higher than 50 should appear"""
+        nac = Building.objects.create(name="NAC")
+        shepard = Building.objects.create(name="Shepard Hall")
+        marshak = Building.objects.create(name="Marshak")
+        Room.objects.create(building=nac, number="1/202", capacity=30)
+        Room.objects.create(building=nac, number="7/313A", capacity=30)
+        Room.objects.create(building=nac, number="6/112", capacity=30)
+        Room.objects.create(building=shepard, number="101", capacity=60)
+        Room.objects.create(building=shepard, number="204", capacity=30)
+        Room.objects.create(building=marshak, number="1307", capacity=30)
+        Room.objects.create(building=marshak, number="MR2", capacity=200)
+        client = Client()
+        response = client.get("/?building=Shepard Hall&min_capacity=50")
+        content = response.content.decode()
+        assert response.status_code == 200
+        assert "NAC" not in content
+        assert "Shepard Hall" in content
+        assert "Marshak" not in content
+        assert "101" in content
+        assert "204" not in content
+
+    def test_room_integration_fail(self):
+        """Filter by a correct building name but an invalid capacity,
+        all rooms in the building will appear due to an invalid capacity"""
+        nac = Building.objects.create(name="NAC")
+        shepard = Building.objects.create(name="Shepard Hall")
+        marshak = Building.objects.create(name="Marshak")
+        Room.objects.create(building=nac, number="1/202", capacity=30)
+        Room.objects.create(building=nac, number="7/313A", capacity=30)
+        Room.objects.create(building=nac, number="6/112", capacity=30)
+        Room.objects.create(building=shepard, number="101", capacity=60)
+        Room.objects.create(building=shepard, number="204", capacity=30)
+        Room.objects.create(building=marshak, number="1307", capacity=30)
+        Room.objects.create(building=marshak, number="MR2", capacity=200)
+        client = Client()
+        response = client.get("/?building=Shepard Hall&min_capacity=fifty")  # invalid capacity
+        content = response.content.decode()
+        assert response.status_code == 200
+        assert "NAC" not in content
+        assert "Shepard Hall" in content
+        assert "Marshak" not in content
+        assert "101" in content
+        assert "204" in content
+
 
 # =====================================================
 # SANITY TEST
