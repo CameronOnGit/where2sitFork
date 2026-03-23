@@ -23,5 +23,7 @@ def room_list(request):
            rooms = rooms.filter(capacity__gte = minimum)
        except ValueError:
            pass
-           
-    return render(request, "rooms/room_list.html", {"rooms": rooms})
+
+
+   return render(request, "rooms/room_list.html", {"rooms": rooms})
+  
