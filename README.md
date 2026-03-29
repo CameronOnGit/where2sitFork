@@ -1,12 +1,12 @@
 # where2sit
 
-A campus room availability tracker
+A web-based campus room availability tracker
 
 ## Pitch
 
 Don't know where to go when you have an online class? The quiet floor in the library is too loud? Too shy to sit next to strangers? We got you!
 
-Currently we don't have a centralized system to view room availability. This tracker is a web-based application that provides faculty, student, and clubs with clear overview of room availability at a specific time. By leveraging class data and room assignments, the system helps individuals and organizations find open spaces for studying or meetings, making sure everyone gets a pleasant environment.
+Currently, we don't have a centralized system to view room availability. This tracker is a web-based application that provides faculty, student, and clubs with clear overview of room availability at a specific time. By leveraging class data and room assignments, the system helps individuals and organizations find open spaces for studying or meetings, making sure everyone gets a pleasant environment.
 
 ## Description
 
@@ -30,12 +30,10 @@ Users can request room usage, and it will be processed by authorized members. Th
 
 ## Benefits
 
-<<<<<<< Updated upstream
-
 - Utilizes campus resources wisely
 - Makes it faster to search for empty spaces
 - Avoids room availability conflicts
-- # Provides alternative to libraries and common areas
+- Provides alternative to libraries and common areas
 
 * Utilizes campus resources wisely
 * Makes it faster to search for empty spaces
