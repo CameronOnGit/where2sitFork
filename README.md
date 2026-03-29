@@ -12,7 +12,7 @@ Currently we don't have a centralized system to view room availability. This tra
 
 where2sit is designed to make campus space usage more visible and flexible. It maintains a database of reserved rooms with scheduled classes and other events. It provides accurate, up-to-date availability information based on verified user input. Users can search for rooms by time, location, capacity, and available resources (e.g. number of blackboards) to find an unoccupied room that best fits their need. Users can rate and leave comments on a room. They can also report issues (e.g. projector is not working) and relevant staff will be notified. In case of emergency, this program provides the fastest evacuation route.
 
-Users can request room usage and it will be processed by authorized members. They will be notified if there is a change to their assigned room. Authorized members (such as staff) can manage room data and scheduled events, ensuring all information is accurate.
+Users can request room usage, and it will be processed by authorized members. They will be notified if there is a change to their assigned room. Authorized members (such as staff) can manage room data and scheduled events, ensuring all information is accurate.
 
 ## Primary Users
 
@@ -26,36 +26,52 @@ Users can request room usage and it will be processed by authorized members. The
 - View directions to and evacuation routes of rooms
 - Filter rooms by building, capacity, available resources, ratings, and more
 - Display scheduled classes and other reserved time slots
-- Administrative interface for mananging rooms
+- Administrative interface for managing rooms
 
 ## Benefits
+
+<<<<<<< Updated upstream
 
 - Utilizes campus resources wisely
 - Makes it faster to search for empty spaces
 - Avoids room availability conflicts
-- Provides alternative to libraries and common areas
+- # Provides alternative to libraries and common areas
+
+* Utilizes campus resources wisely
+* Makes it faster to search for empty spaces
+* Avoids room availability conflicts
+* Provides alternative to libraries and common areas
 
 ## Developer Side / Notes
 
-## How to run application
+### How to run application
 
-Something like the following for instructions on how to run:
+1. Clone repo
+2. Create virtual environment
+3. Install requirements
+4. Run migrations
+5. Start development server
 
-1 Clone repo
-2 Create virtual environment
-3 Install requirements
-4 Run migrations
-5 Start development server
+### Clearer Setup:
 
-Clearer Setup:
+```
 git clone repo
+
 cd where2sit
 
-python -m venv venv # Only if virtual environment not already set up.
-source venv/bin/activate
+python -m venv venv (Only if virtual environment not already set up.)
+
+source venv/bin/activate (Unix)
+
+.\venv\Scripts\Activate.ps1 (Windows)
 
 pip install -r requirements.txt
 
 python manage.py migrate
+
 (python manage.py tailwind start) #In separate Teminal/If making frontend changes
+
+python manage.py seed
+
 python manage.py runserver
+```
