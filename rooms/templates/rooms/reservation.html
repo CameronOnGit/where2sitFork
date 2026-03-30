@@ -39,5 +39,24 @@
         <div class="mt-4 p-3 bg-red-100 text-red-700 rounded">{{ error }}</div>
         {% endif %}
     </div>
+    <!-- My Reservation Section -->
+    <div class="bg-white rounded-lg shadow-md p-6 max-w-lg mx-auto mt-8">
+        <h2 class="text-xl font-bold mb-4">My Reservations</h2>
+        {% if my_reservations and my_reservations|length > 0 %}
+        <ul class="divide-y divide-gray-200">
+            {% for r in my_reservations %}
+            <li class="py-3">
+                <div class="flex flex-col">
+                    <span class="font-semibold text-gray-800">{{ r.room.building.name }} {{ r.room.number }}</span>
+                    <span class="text-gray-600 text-sm">Date: {{ r.date }} | Time: {{ r.time }} | Duration: {{ r.duration }}h</span>
+                    {% if r.name %}<span class="text-gray-400 text-xs">Name: {{ r.name }}</span>{% endif %}
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <div class="text-gray-500">No reservations yet.</div>
+        {% endif %}
+    </div>
 </div>
 {% endblock %}
