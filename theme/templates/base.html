@@ -54,8 +54,9 @@
 
                 <!--Nav links-->
                 <div class="flex items-center space-x-6">
+
                     <a href="{% url 'rooms:room_list' %}" class="text-gray-600 hover:text-primary transition">Rooms</a>
-                    <a href="#" class="text-gray-600 hover:text-primary transition">Bookings</a>
+                    <a href="{% url 'rooms:reservation' %}" class="text-gray-600 hover:text-primary transition">Reservation</a>
 
                     {% if user.is_authenticated %}
                         <a href="#" class="text-grey-600 hover:text-primary transition">My Profile</a>
