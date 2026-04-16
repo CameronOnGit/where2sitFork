@@ -1,4 +1,5 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
+from django.contrib.auth.forms import UserCreationForm
 from .models import Room, Building
 
 # Create your views here.
@@ -32,6 +33,18 @@ def room_list(request):
             pass
 
     return render(request, "rooms/room_list.html", context)
+
+
+# User account
+def signup(request):
+    if request.method == 'POST':
+        form = UserCreationForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('login')
+    else:
+        form = UserCreationForm()
+    return render(request, 'registration/signup.html', {'form': form})
 
 
 # Reservation view (no login required)
