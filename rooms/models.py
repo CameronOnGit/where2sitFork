@@ -15,3 +15,16 @@ class Room(models.Model):
 
     def __str__(self):
         return f"{self.building} - {self.number}"
+
+
+# Reservation model for room booking
+class Reservation(models.Model):
+    name = models.CharField(max_length=100, blank=True, null=True)
+    room = models.ForeignKey(Room, on_delete=models.CASCADE)
+    date = models.DateField()
+    time = models.TimeField()
+    duration = models.PositiveIntegerField(help_text="Duration in hours")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.name or 'Anonymous'} - {self.room} on {self.date} at {self.time}" 
