@@ -111,3 +111,14 @@ def reservation(request):
         'my_reservations': my_reservations,
     }
     return render(request, "rooms/reservation.html", context)
+
+
+@login_required
+def bookings(request):
+    reservations = Reservation.objects.filter(
+        user=request.user
+    ).order_by('-created_at')
+
+    return render(request, "rooms/bookings.html", {
+        "reservations": reservations
+    })
