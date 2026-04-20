@@ -80,31 +80,37 @@ def reservation(request):
     rooms = Room.objects.select_related('building').all()
     success = False
     error = None
-
+    
     if request.method == 'POST':
         room_id = request.POST.get('room')
         date = request.POST.get('date')
         time_ = request.POST.get('time')
         duration = request.POST.get('duration')
+        
         if not (room_id and date and time_ and duration):
             error = 'Please fill in all required fields.'
         else:
             try:
+                # Validate room exists
+                room = Room.objects.get(id=room_id)
+                
                 reservation = Reservation.objects.create(
                     user=request.user,
-                    room_id=room_id,
+                    room=room,  # Use the room object instead of room_id
                     date=date,
                     time=time_,
                     duration=duration,
                 )
                 success = True
+            except Room.DoesNotExist:
+                error = 'The selected room does not exist.'
             except Exception as e:
                 error = f"Reservation failed: {e}"
-
+    
     my_reservations = Reservation.objects.filter(
         user=request.user
     ).order_by('-created_at')
-
+    
     context = {
         'rooms': rooms,
         'success': success,
