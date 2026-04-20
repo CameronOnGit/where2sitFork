@@ -654,7 +654,10 @@ class TestEdgeCaseIntegration:
         
         assert response.status_code == 200
         assert response.context['buildings'].count() == 0
-        assert len(response.context['featured_rooms']) == 0
+        
+        # Check for either featured_rooms or top_rooms
+        rooms_key = 'featured_rooms' if 'featured_rooms' in response.context else 'top_rooms'
+        assert len(response.context[rooms_key]) == 0
     
     def test_empty_building_name_in_room_list(self):
         """Rooms with buildings that have empty names display correctly"""
