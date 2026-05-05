@@ -205,6 +205,7 @@ def room_detail(request, room_id):
     ratings = room.ratings.select_related('user').order_by('-created_at')
     date_str = request.GET.get('date')
 
+    # Show room availability by date, default to today
     if date_str:
         selected_date = datetime.strptime(date_str, "%Y-%m-%d").date()
     else:
