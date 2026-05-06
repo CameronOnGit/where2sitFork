@@ -93,34 +93,35 @@ def reservation(request):
         start_time = request.POST.get('start_time')
         end_time = request.POST.get('end_time')
 
-        date_ = datetime.strptime(date, "%Y-%m-%d").date()
-        start_time_ = datetime.strptime(start_time, "%H:%M").time()
-        end_time_ = datetime.strptime(end_time, "%H:%M").time()
-
         if not (room_id and date and start_time and end_time):
             error = 'Please fill in all required fields.'
-        elif start_time_ > end_time_:
-            error = 'Please fill in the correct time.'
         else:
-            try:
-                # Validate room exists
-                room = Room.objects.get(id=room_id)
+            date_ = datetime.strptime(date, "%Y-%m-%d").date()
+            start_time_ = datetime.strptime(start_time, "%H:%M").time()
+            end_time_ = datetime.strptime(end_time, "%H:%M").time()
 
-                if not room.is_available(date_, start_time_, end_time_):
-                    error = "Room is not available at this time."
-                else:
-                    reservation = Reservation.objects.create(
-                        user=request.user,
-                        room=room,  # Use the room object instead of room_id
-                        date=date,
-                        start_time=start_time,
-                        end_time=end_time,
-                    )
-                    success = True
-            except Room.DoesNotExist:
-                error = 'The selected room does not exist.'
-            except Exception as e:
-                error = f"Reservation failed: {e}"
+            if start_time_ > end_time_:
+                error = 'Please fill in the correct time.'
+            else:
+                try:
+                    # Validate room exists
+                    room = Room.objects.get(id=room_id)
+
+                    if not room.is_available(date_, start_time_, end_time_):
+                        error = "Room is not available at this time."
+                    else:
+                        reservation = Reservation.objects.create(
+                            user=request.user,
+                            room=room,  # Use the room object instead of room_id
+                            date=date,
+                            start_time=start_time,
+                            end_time=end_time,
+                        )
+                        success = True
+                except Room.DoesNotExist:
+                    error = 'The selected room does not exist.'
+                except Exception as e:
+                    error = f"Reservation failed: {e}"
     
     my_reservations = Reservation.objects.filter(
         user=request.user

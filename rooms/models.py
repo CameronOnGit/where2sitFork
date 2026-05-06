@@ -95,14 +95,12 @@ class Reservation(models.Model):
     name = models.CharField(max_length=100, blank=True, null=True)
     room = models.ForeignKey(Room, on_delete=models.CASCADE)
     date = models.DateField()
-    #time = models.TimeField()
-    #duration = models.PositiveIntegerField(help_text="Duration in hours")
     created_at = models.DateTimeField(auto_now_add=True)
     start_time = models.TimeField(null=True, blank=True)
     end_time = models.TimeField(null=True, blank=True)
 
     def __str__(self):
-        return f"{self.name or 'Anonymous'} - {self.room} on {self.date} at {self.time}"
+        return f"{self.name or 'Anonymous'} - {self.room} on {self.date} from {self.start_time} to {self.end_time}"
 
 
 class RoomRating(models.Model):
