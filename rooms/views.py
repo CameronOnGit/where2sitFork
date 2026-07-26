@@ -1,30 +1,42 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import login
-from .models import Room, Building
+from django.contrib import messages
+from django.urls import reverse
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
-
+from django.db.models import Avg
+from .models import *
+from datetime import datetime, date
 # Create your views here.
 
 def home(request):
-    featured_rooms = Room.objects.select_related('building').all()[:6]
     buildings = Building.objects.all()
+    rooms = Room.objects.annotate(
+        avg_rating=Avg('ratings__score')
+    ).order_by('-avg_rating')[:5]
+
+    now = datetime.now()
+    date_now = now.date().isoformat(),
+    time_now = now.strftime("%H:%M"),
 
     context = {
-        'featured_rooms': featured_rooms,
         'buildings': buildings,
+        'date_now': date_now[0],
+        'time_now': time_now[0],
+        'top_rooms': rooms,
     }
     return render(request, "rooms/home.html", context)
 
 def room_list(request):
-    rooms = Room.objects.all()
+    rooms = Room.objects.select_related('building').annotate(avg_rating=Avg('ratings__score')).order_by('building', '-avg_rating', 'number')
     buildings = Building.objects.all()
 
-    building_id = request.GET.get('building') # consider using id instead of name
+    building_id = request.GET.get('building')
     date = request.GET.get('date')
     time = request.GET.get('time')
     min_capacity = request.GET.get('min_capacity')
+    min_rating = request.GET.get('min_rating')
 
     if building_id:
         rooms = rooms.filter(building_id=building_id)
@@ -36,10 +48,23 @@ def room_list(request):
         except ValueError:
             pass
 
+    if min_rating and min_rating != '':
+        try:
+            min_rating_val = float(min_rating)
+            rooms = rooms.filter(avg_rating__gte=min_rating_val)
+        except ValueError:
+            pass
+
+    if date and time:
+        date_ = datetime.strptime(date, "%Y-%m-%d").date()
+        start_time = datetime.strptime(time, "%H:%M").time()
+        rooms = [room for room in rooms if room.is_available(date_, start_time, start_time)]
+
     selected_building = building_id if building_id else ''
     selected_date = date if date else ''
     selected_time = time if time else ''
-    
+    selected_min_rating = min_rating if min_rating else ''
+
     context = {
         'rooms': rooms,
         'buildings': buildings,
@@ -47,6 +72,7 @@ def room_list(request):
         'selected_date': selected_date,
         'selected_time': selected_time,
         'min_capacity': min_capacity,
+        'selected_min_rating': selected_min_rating,
     }
 
     return render(request, "rooms/room_list.html", context)
@@ -69,7 +95,8 @@ def register(request):
 
 # Reservation view (no login required)
 
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.core.exceptions import PermissionDenied
 from django.utils import timezone
 from django.shortcuts import redirect
 from .models import Reservation
@@ -77,34 +104,55 @@ from .models import Reservation
 
 @login_required
 def reservation(request):
-    rooms = Room.objects.select_related('building').all()
+    rooms = Room.objects.select_related('building').all().order_by('building', 'number')
     success = False
     error = None
-
+    
     if request.method == 'POST':
         room_id = request.POST.get('room')
         date = request.POST.get('date')
-        time_ = request.POST.get('time')
-        duration = request.POST.get('duration')
-        if not (room_id and date and time_ and duration):
+        start_time = request.POST.get('start_time')
+        end_time = request.POST.get('end_time')
+
+        if not (room_id and date and start_time and end_time):
             error = 'Please fill in all required fields.'
         else:
-            try:
-                reservation = Reservation.objects.create(
-                    user=request.user,
-                    room_id=room_id,
-                    date=date,
-                    time=time_,
-                    duration=duration,
-                )
-                success = True
-            except Exception as e:
-                error = f"Reservation failed: {e}"
+            date_ = datetime.strptime(date, "%Y-%m-%d").date()
+            start_time_ = datetime.strptime(start_time, "%H:%M").time()
+            end_time_ = datetime.strptime(end_time, "%H:%M").time()
 
+            if start_time_ > end_time_:
+                error = 'Please fill in the correct time.'
+            else:
+                try:
+                    # Validate room exists
+                    room = Room.objects.get(id=room_id)
+
+                    if not room.is_available(date_, start_time_, end_time_):
+                        error = "Room is not available at this time."
+                    
+                    # cannot have more than 5 active reservations
+                    elif Reservation.objects.filter(user=request.user, date__gte=timezone.now().date(), status__in=['Pending', 'Approved']).count() >= 5:
+                        error = "You cannot have more than 5 active reservations."
+
+                    else:
+                        reservation = Reservation.objects.create(
+                            user=request.user,
+                            room=room,  # Use the room object instead of room_id
+                            date=date,
+                            start_time=start_time,
+                            end_time=end_time,
+                        )
+                        success = True
+                except Room.DoesNotExist:
+                    error = 'The selected room does not exist.'
+                except Exception as e:
+                    error = f"Reservation failed: {e}"
+    
     my_reservations = Reservation.objects.filter(
         user=request.user
     ).order_by('-created_at')
-
+    
     context = {
         'rooms': rooms,
         'success': success,
@@ -118,7 +166,8 @@ def reservation(request):
 @login_required
 def bookings(request):
     reservations = Reservation.objects.filter(
-        user=request.user
+        user=request.user,
+        status__in=['Pending', 'Approved'],
     ).order_by('-created_at')
 
     return render(request, "rooms/bookings.html", {
@@ -150,3 +199,390 @@ def toggle_favorite(request, room_id):
         'favorited': is_favorited
     })
 
+@require_POST
+@login_required
+def rate_room(request, room_id):
+    room = get_object_or_404(Room, id=room_id)
+
+    if request.method == "POST":
+        score = request.POST.get("score")
+        comment = request.POST.get("comment", "")
+
+        if not score:
+            return JsonResponse({"success": False, "error": "Score is required"})
+
+        rating, created = RoomRating.objects.get_or_create(
+            user=request.user,
+            room=room,
+            defaults={
+                "score": int(score),
+                "comment": comment
+            }
+        )
+        if not created:
+            rating.score = int(score)
+            rating.comment = comment
+            rating.save()
+
+        return JsonResponse({"success": True})
+
+    return JsonResponse({"success": False, "error": "Invalid request"})
+
+def room_detail(request, room_id):
+    room = get_object_or_404(Room, id=room_id)
+    ratings = room.ratings.select_related('user').order_by('-created_at')
+    date_str = request.GET.get('date')
+
+    # Show room availability by date, default to today
+    if date_str:
+        selected_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    else:
+        selected_date = date.today()
+
+    schedule = room.get_schedule_for_day(selected_date)
+
+    context = {
+        'room': room,
+        'average_rating': room.average_rating,
+        'rating_count': room.rating_count,
+        'ratings': ratings,
+        'schedule': schedule,
+        'selected_date': selected_date,
+    }
+    return render(request, 'rooms/room_detail.html', context)
+
+
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
+
+@login_required
+@require_POST
+def room_reserve(request, room_id):
+    room = get_object_or_404(Room, id=room_id)
+    date_str = request.POST.get('date')
+    start_time = request.POST.get('start_time')
+    end_time = request.POST.get('end_time')
+    if not (date_str and start_time and end_time):
+        return JsonResponse({'success': False, 'error': 'Please fill in all required fields.'})
+    try:
+        date_ = datetime.strptime(date_str, "%Y-%m-%d").date()
+        start_time_ = datetime.strptime(start_time, "%H:%M").time()
+        end_time_ = datetime.strptime(end_time, "%H:%M").time()
+        if start_time_ >= end_time_:
+            return JsonResponse({'success': False, 'error': 'End time must be after start time.'})
+        if not room.is_available(date_, start_time_, end_time_):
+            return JsonResponse({'success': False, 'error': 'Room is not available at this time.'})
+        Reservation.objects.create(
+            user=request.user,
+            room=room,
+            date=date_,
+            start_time=start_time_,
+            end_time=end_time_,
+        )
+        return JsonResponse({'success': True})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+def manage_reservations(request):
+    
+    context = {
+        'reservations': Reservation.objects.filter(status='Pending').order_by('-created_at')
+    }
+    
+    return render(request, 'rooms/manage_reservations.html', context)
+
+def is_manager(user):
+    return user.groups.filter(name='Manager').exists()
+
+manager_required = user_passes_test(is_manager)
+
+@login_required
+def update_reservation_status(request, reservation_id):
+    new_status = request.POST.get('status')
+    if not is_manager(request.user):
+        return JsonResponse({'success': False, 'error': 'Unauthorized'}, status=403)
+
+    reservation = get_object_or_404(Reservation, id=reservation_id)
+
+    if new_status not in ['Approved', 'Rejected']:
+        return JsonResponse({'success': False, 'error': 'Invalid status'}, status=400)
+
+    reservation.status = new_status
+    reservation.save()
+    
+    if new_status == 'Approved':
+        messages.success(
+            request,
+            f"{reservation.user.username}'s reservation for {reservation.room} on {reservation.date} has been approved."
+        )
+    else:
+        messages.error(
+            request,
+            f"{reservation.user.username}'s reservation for {reservation.room} for {reservation.date} has been rejected."
+        )
+
+    return redirect('rooms:manage_reservations')
+
+
+@login_required
+@require_POST
+def report_room_issue(request, room_id):
+    room = get_object_or_404(Room, id=room_id)
+    description = (request.POST.get("description") or "").strip()
+    if len(description) < 5:
+        return JsonResponse(
+            {"success": False, "error": "Please describe the issue (at least 5 characters)."},
+            status=400,
+        )
+    if len(description) > 8000:
+        return JsonResponse(
+            {"success": False, "error": "Description is too long."},
+            status=400,
+        )
+    RoomIssueReport.objects.create(user=request.user, room=room, description=description)
+    return JsonResponse({"success": True})
+
+
+@login_required
+def manage_room_issues(request):
+    if not is_manager(request.user):
+        raise PermissionDenied
+    reports = RoomIssueReport.objects.select_related("user", "room__building").order_by("-created_at")
+    return render(request, "rooms/manage_room_issues.html", {"reports": reports})
+
+
+@login_required
+@require_POST
+def resolve_room_issue(request, report_id):
+    if not is_manager(request.user):
+        raise PermissionDenied
+    report = get_object_or_404(RoomIssueReport, id=report_id)
+    if report.status != RoomIssueReport.Status.RESOLVED:
+        report.status = RoomIssueReport.Status.RESOLVED
+        report.save()
+        messages.success(request, "Issue marked as resolved.")
+    return redirect("rooms:manage_room_issues")
+
+
+from .forms import RoomForm, ClassScheduleForm
+
+
+@manager_required
+@login_required
+def add_room(request):
+
+    if request.method == 'POST':
+        form = RoomForm(request.POST)
+
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Room added.")
+            return redirect('rooms:manage_rooms')
+
+    else:
+        form = RoomForm()
+
+    return render(request, 'rooms/room_form.html', {
+        'form': form
+    })
+
+
+@login_required
+@manager_required
+def edit_room(request, room_id):
+
+    room = get_object_or_404(Room, id=room_id)
+
+    if request.method == 'POST':
+        form = RoomForm(request.POST, instance=room)
+
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Room updated.")
+            return redirect('rooms:manage_rooms')
+
+    else:
+        form = RoomForm(instance=room)
+
+    return render(request, 'rooms/room_form.html', {
+        'form': form,
+        'room': room,
+    })
+
+
+@login_required
+@manager_required
+@require_POST
+def delete_room(request, room_id):
+
+    room = get_object_or_404(Room, id=room_id)
+
+    room.delete()
+
+    messages.success(request, "Room deleted.")
+
+    return redirect('rooms:manage_rooms')
+
+
+@login_required
+@manager_required
+def manage_rooms(request):
+
+    rooms = Room.objects.select_related('building').order_by('building', 'number')
+
+    return render(request, 'rooms/manage_rooms.html', {
+        'rooms': rooms
+    })
+
+
+@login_required
+@manager_required
+def add_class(request):
+
+    if request.method == 'POST':
+        form = ClassScheduleForm(request.POST)
+
+        if form.is_valid():
+            form.save()
+
+            messages.success(request, "Class added.")
+
+            return redirect('rooms:manage_classes')
+
+    else:
+        form = ClassScheduleForm()
+
+    return render(request, 'rooms/class_form.html', {
+        'form': form,
+        'add': 1
+    })
+
+
+@login_required
+@manager_required
+def edit_class(request, class_id):
+
+    class_schedule = get_object_or_404(
+        ClassSchedule,
+        id=class_id
+    )
+
+    if request.method == 'POST':
+        form = ClassScheduleForm(
+            request.POST,
+            instance=class_schedule
+        )
+
+        if form.is_valid():
+            form.save()
+
+            messages.success(request, "Class updated.")
+
+            return redirect('rooms:manage_classes')
+
+    else:
+        form = ClassScheduleForm(instance=class_schedule)
+
+    return render(request, 'rooms/class_form.html', {
+        'form': form,
+        'add': 0
+    })
+
+
+@login_required
+@manager_required
+@require_POST
+def delete_class(request, class_id):
+
+    class_schedule = get_object_or_404(
+        ClassSchedule,
+        id=class_id
+    )
+
+    class_schedule.delete()
+
+    messages.success(request, "Class deleted.")
+
+    return redirect('rooms:manage_classes')
+
+
+from django.core.paginator import Paginator
+
+
+@login_required
+@manager_required
+def manage_classes(request):
+    classes = ClassSchedule.objects.select_related(
+        'room',
+        'room__building'
+    ).all().order_by(
+        'course_name',
+        'day_of_week',
+        'start_time'
+    )
+
+    rooms = Room.objects.select_related('building').all().order_by('building', 'number')
+
+    # Filters
+    room_id = request.GET.get('room')
+    course_name = request.GET.get('course_name')
+    day_of_week = request.GET.get('day_of_week')
+    start_time = request.GET.get('start_time')
+    end_time = request.GET.get('end_time')
+
+    if room_id:
+        classes = classes.filter(room_id=room_id)
+
+    if course_name:
+        classes = classes.filter(course_name__icontains=course_name)
+    else:
+        course_name = ''
+
+    if day_of_week:
+        classes = classes.filter(day_of_week=day_of_week)
+
+    if start_time:
+        classes = classes.filter(start_time__gte=start_time)
+
+    if end_time:
+        classes = classes.filter(end_time__lte=end_time)
+
+    # Pagination
+    paginator = Paginator(classes, 30)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        'classes': page_obj,
+        'rooms': rooms,
+
+        # preserve selected filters
+        'selected_room': room_id,
+        'selected_course_name': course_name,
+        'selected_day': day_of_week,
+        'selected_start_time': start_time,
+        'selected_end_time': end_time,
+    }
+
+    return render(request, 'rooms/manage_classes.html', context)
+
+
+@login_required
+@manager_required
+def manager_dashboard(request):
+
+    context = {
+        'room_count': Room.objects.count(),
+        'pending_reservations': Reservation.objects.filter(
+            status='Pending'
+        ).count(),
+        'issue_count': RoomIssueReport.objects.filter(
+            status='Open'
+        ).count(),
+    }
+
+    return render(
+        request,
+        'rooms/manager_dashboard.html',
+        context
+    )
