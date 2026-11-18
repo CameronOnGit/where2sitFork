@@ -77,3 +77,13 @@ python manage.py seed
 
 python manage.py runserver
 ```
+
+## App Images
+
+Below are a few of the web application's pages.
+
+![Room Searching](images/room_search.png)
+
+![Favorited Rooms](images/favorited_rooms.png)
+
+![Room Reservation Creation](images/reserve_room.png)
